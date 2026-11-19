@@ -1,5 +1,14 @@
 import { expect, test } from 'vitest';
-import { fallbackFileName, formatDate, formatSize } from '../src/format';
+import { BIG_FILE_BYTES, fallbackFileName, formatDate, formatSize, toPercent } from '../src/format';
+
+test('progress percent is clamped and safe for unknown total', () => {
+  expect(toPercent(50, 200)).toBe(25);
+  expect(toPercent(300, 200)).toBe(100);
+  expect(toPercent(5, 0)).toBe(0);
+});
+test('big file limit is 150 MB', () => {
+  expect(BIG_FILE_BYTES).toBe(150 * 1024 * 1024);
+});
 
 test('size in MB with Turkish comma', () => {
   expect(formatSize(4.25 * 1024 * 1024)).toBe('4,3 MB');

@@ -4,6 +4,7 @@ import { telegram } from '../telegram/client';
 import { mapError } from '../telegram/errors';
 import type { DocResult, SearchCursor } from '../telegram/types';
 import { formatDate, formatSize } from '../format';
+import { selected } from '../state';
 
 // Search screen state lives at module level so it survives re-renders.
 const query = signal('');
@@ -90,10 +91,12 @@ export function Search({ onRelogin }: { onRelogin: () => void }) {
 
       <ul class="results">
         {results.value.map((r) => (
-          <li class="card" key={`${r.ref.chatId}:${r.ref.msgId}`}>
-            <strong>{r.fileName}</strong>
-            <span>{r.chatTitle}</span>
-            <small>{formatDate(r.date)} · {formatSize(r.size)}</small>
+          <li key={`${r.ref.chatId}:${r.ref.msgId}`}>
+            <button type="button" class="card" onClick={() => (selected.value = r)}>
+              <strong>{r.fileName}</strong>
+              <span>{r.chatTitle}</span>
+              <small>{formatDate(r.date)} · {formatSize(r.size)}</small>
+            </button>
           </li>
         ))}
       </ul>

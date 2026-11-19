@@ -4,7 +4,9 @@ import { StringSession } from 'telegram/sessions';
 import { Logger, LogLevel } from 'telegram/extensions/Logger';
 import { storage, type ApiCreds } from '../storage';
 import { parseSearchResult, type RawSearchResult } from './search';
-import type { AuthState, PeerRef, SearchCursor, SearchPage } from './types';
+import { UserError } from './errors';
+import { toPercent } from '../format';
+import type { AuthState, DocRef, PeerRef, SearchCursor, SearchPage } from './types';
 
 // GramJS's connect() does NOT throw when the WebSocket cannot be opened, it just
 // returns. To learn *why* it failed we keep its last warnings/errors in memory
@@ -40,6 +42,9 @@ function toInputPeer(p: PeerRef) {
     ? new Api.InputPeerChannel({ channelId: id, accessHash })
     : new Api.InputPeerUser({ userId: id, accessHash });
 }
+
+const refKey = (r: DocRef) => `${r.chatId}:${r.msgId}`;
+let lastDownload: { key: string; file: File } | null = null;
 
 let client: TelegramClient | null = null;
 let creds: ApiCreds | null = null;
@@ -123,10 +128,44 @@ export const telegram = {
     return parseSearchResult(res as unknown as RawSearchResult, meId, SEARCH_LIMIT);
   },
 
+  // The last downloaded file stays in memory, so sharing it again needs no re-download.
+  cachedFile(ref: DocRef): File | null {
+    return lastDownload && lastDownload.key === refKey(ref) ? lastDownload.file : null;
+  },
+
+  async download(ref: DocRef, fileName: string, mimeType: string, onProgress: (pct: number) => void): Promise<File> {
+    const cached = this.cachedFile(ref);
+    if (cached) { onProgress(100); return cached; }
+
+    const c = need();
+    await connectOrThrow(c);
+    // Always fetch the message again: file references expire after a while.
+    const fetchAndDownload = async () => {
+      const [msg] = await c.getMessages(toInputPeer(ref.peer), { ids: [ref.msgId] });
+      if (!msg?.media) throw new UserError('Mesaj artık bulunamıyor (silinmiş olabilir)');
+      return c.downloadMedia(msg, { progressCallback: (d, t) => onProgress(toPercent(d, t)) });
+    };
+    let bytes: Awaited<ReturnType<typeof fetchAndDownload>>;
+    try {
+      bytes = await fetchAndDownload();
+    } catch (e) {
+      // Expired file reference: one retry with a fresh message (ARCHITECTURE.md §5.1).
+      if (String((e as { errorMessage?: string }).errorMessage).includes('FILE_REFERENCE_EXPIRED')) bytes = await fetchAndDownload();
+      else throw e;
+    }
+    if (!bytes || typeof bytes === 'string') throw new UserError('Dosya indirilemedi');
+
+    const file = new File([bytes as unknown as BlobPart], fileName, { type: mimeType });
+    lastDownload = { key: refKey(ref), file };
+    onProgress(100);
+    return file;
+  },
+
   async logOut(): Promise<void> {
     try { await need().invoke(new Api.auth.LogOut()); } catch { /* already invalid: fine */ }
     storage.clearSession();
     meId = '';
+    lastDownload = null;
     try { await need().disconnect(); } catch { /* ignore */ }
     client = null;
   },

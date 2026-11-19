@@ -4,6 +4,8 @@ import { storage } from './storage';
 import { telegram } from './telegram/client';
 import { mapError } from './telegram/errors';
 import { Search } from './screens/Search';
+import { FileDetail } from './screens/FileDetail';
+import { selected } from './state';
 
 // Phase 1 screens: setup -> phone -> code -> (2FA password) -> signed in.
 // The real search UI comes in Phase 2.
@@ -105,11 +107,16 @@ function Password() {
 }
 
 function Home() {
+  const relogin = () => { selected.value = null; screen.value = 'phone'; };
+  // Search state is kept in module-level signals, so going back shows the same results.
+  if (selected.value) {
+    return <FileDetail doc={selected.value} onBack={() => (selected.value = null)} onRelogin={relogin} />;
+  }
   return (
     <div>
-      <Search onRelogin={() => { screen.value = 'phone'; }} />
+      <Search onRelogin={relogin} />
       {/* A proper Settings screen (with logout) arrives in Phase 4. */}
-      <button class="secondary" onClick={() => run(async () => { await telegram.logOut(); screen.value = 'phone'; })}>Çıkış yap</button>
+      <button class="secondary" onClick={() => run(async () => { await telegram.logOut(); relogin(); })}>Çıkış yap</button>
     </div>
   );
 }

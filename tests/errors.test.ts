@@ -1,5 +1,12 @@
 import { expect, test } from 'vitest';
-import { mapError } from '../src/telegram/errors';
+import { mapError, UserError } from '../src/telegram/errors';
+
+test('our own Turkish messages pass through unchanged', () => {
+  expect(mapError(new UserError('Dosya indirilemedi')).message).toBe('Dosya indirilemedi');
+});
+test('expired file reference', () => {
+  expect(mapError({ errorMessage: 'FILE_REFERENCE_EXPIRED' }).message).toContain('süresi doldu');
+});
 
 test('wrong code', () => {
   expect(mapError({ errorMessage: 'PHONE_CODE_INVALID' })).toEqual({ message: 'Kod hatalı', action: 'retry-code' });

@@ -3,9 +3,13 @@ export type ErrorAction = 'none' | 'retry-code' | 'ask-password' | 'relogin';
 
 export type MappedError = { message: string; action: ErrorAction };
 
+// For failures whose Turkish message we wrote ourselves: shown to the user as is.
+export class UserError extends Error {}
+
 // GramJS RPC errors carry the Telegram error text in `errorMessage`
 // (e.g. "PHONE_CODE_INVALID", "FLOOD_WAIT_120"); network errors are plain Errors.
 export function mapError(e: unknown): MappedError {
+  if (e instanceof UserError) return { message: e.message, action: 'none' };
   const raw = String((e as { errorMessage?: string })?.errorMessage ?? (e as Error)?.message ?? e);
 
   // Our own connect failure already carries GramJS's reason; keep it visible.
@@ -14,6 +18,7 @@ export function mapError(e: unknown): MappedError {
   const flood =/FLOOD_WAIT_(\d+)/.exec(raw);
   if (flood) return { message: `${flood[1]} sn sonra tekrar deneyin`, action: 'none' };
 
+  if (raw.includes('FILE_REFERENCE_EXPIRED')) return { message: 'Dosya bağlantısının süresi doldu, tekrar deneyin', action: 'none' };
   if (raw.includes('PHONE_CODE_INVALID')) return { message: 'Kod hatalı', action: 'retry-code' };
   if (raw.includes('PHONE_CODE_EXPIRED')) return { message: 'Kodun süresi doldu, yeni kod isteyin', action: 'retry-code' };
   if (raw.includes('PHONE_NUMBER_INVALID')) return { message: 'Telefon numarası geçersiz (+90… biçiminde yazın)', action: 'none' };

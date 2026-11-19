@@ -8,6 +8,16 @@ export function formatSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+// GramJS reports progress as (downloaded, total) big integers; we only need a 0-100 number.
+export function toPercent(downloaded: { toString(): string }, total: { toString(): string }): number {
+  const t = Number(total.toString());
+  if (!t) return 0;
+  return Math.max(0, Math.min(100, Math.round((Number(downloaded.toString()) / t) * 100)));
+}
+
+// Above this the whole file in iPhone RAM may crash the tab (ARCHITECTURE.md §5.1).
+export const BIG_FILE_BYTES = 150 * 1024 * 1024;
+
 // Unix seconds -> "gg.aa.yyyy" in the phone's local time.
 export function formatDate(unixSeconds: number): string {
   const d = new Date(unixSeconds * 1000);
