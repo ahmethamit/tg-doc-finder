@@ -1,14 +1,24 @@
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf8'));
 
 // base must match the GitHub Pages path: https://<user>.github.io/tg-doc-finder/
 const base = '/tg-doc-finder/';
 
 export default defineConfig({
   base,
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  // GramJS needs Node's `os`; the browser has none, so use our small stub.
+  resolve: { alias: { os: fileURLToPath(new URL('./src/shims/os.ts', import.meta.url)) } },
   plugins: [
     preact(),
+    // GramJS expects Node globals (Buffer, process...); the plugin supplies browser versions.
+    nodePolyfills({ include: ['buffer', 'process', 'util', 'stream', 'events', 'path'], globals: { Buffer: true, process: true } }),
     VitePWA({
       // 'prompt': a new version waits for the user (update banner comes in Phase 5)
       registerType: 'prompt',
