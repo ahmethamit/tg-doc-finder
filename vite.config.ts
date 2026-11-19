@@ -13,8 +13,16 @@ const base = '/tg-doc-finder/';
 export default defineConfig({
   base,
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
-  // GramJS needs Node's `os`; the browser has none, so use our small stub.
-  resolve: { alias: { os: fileURLToPath(new URL('./src/shims/os.ts', import.meta.url)) } },
+  resolve: {
+    alias: [
+      // GramJS needs Node's `os`; the browser has none, so use our small stub.
+      { find: /^os$/, replacement: fileURLToPath(new URL('./src/shims/os.ts', import.meta.url)) },
+      // GramJS imports Node's `crypto` (randomBytes, sha1...). GramJS ships its own
+      // Web Crypto based version for browsers; without this alias `crypto` is an
+      // empty module and login fails with "randomBytes is not a function".
+      { find: /^crypto$/, replacement: fileURLToPath(new URL('./node_modules/telegram/crypto/crypto.js', import.meta.url)) },
+    ],
+  },
   plugins: [
     preact(),
     // GramJS expects Node globals (Buffer, process...); the plugin supplies browser versions.
