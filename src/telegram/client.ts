@@ -3,7 +3,8 @@ import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { Logger, LogLevel } from 'telegram/extensions/Logger';
 import { storage, type ApiCreds } from '../storage';
-import type { AuthState } from './types';
+import { parseSearchResult, type RawSearchResult } from './search';
+import type { AuthState, PeerRef, SearchCursor, SearchPage } from './types';
 
 // GramJS's connect() does NOT throw when the WebSocket cannot be opened, it just
 // returns. To learn *why* it failed we keep its last warnings/errors in memory
@@ -23,6 +24,21 @@ async function connectOrThrow(c: TelegramClient) {
   if (!c.connected) {
     throw new Error(`Telegram'a bağlanılamadı. ${memoryLog.lines.join(' | ')}`);
   }
+}
+
+const SEARCH_LIMIT = 30;
+let meId = ''; // our own user id, to hide hits from "Saved Messages"
+
+// Rebuild the InputPeer Telegram wants for "continue after this message".
+function toInputPeer(p: PeerRef) {
+  // GramJS wants its own big-integer objects, which is exactly what we kept in PeerRef.
+  const id = p.id as never;
+  const accessHash = p.accessHash as never;
+  if (p.type === 'chat') return new Api.InputPeerChat({ chatId: id });
+  if (!accessHash) return new Api.InputPeerEmpty(); // cannot address it: start over
+  return p.type === 'channel'
+    ? new Api.InputPeerChannel({ channelId: id, accessHash })
+    : new Api.InputPeerUser({ userId: id, accessHash });
 }
 
 let client: TelegramClient | null = null;
@@ -86,9 +102,31 @@ export const telegram = {
     saveSession();
   },
 
+  // Global document search across all chats (ARCHITECTURE.md §5.1).
+  async search(q: string, offset?: SearchCursor): Promise<SearchPage> {
+    const c = need();
+    await connectOrThrow(c);
+    if (!meId) meId = String(((await c.getMe()) as Api.User).id);
+    const res = await c.invoke(
+      new Api.messages.SearchGlobal({
+        q,
+        filter: new Api.InputMessagesFilterDocument(),
+        minDate: 0,
+        maxDate: 0,
+        offsetRate: offset?.offsetRate ?? 0,
+        offsetPeer: offset ? toInputPeer(offset.peer) : new Api.InputPeerEmpty(),
+        offsetId: offset?.offsetId ?? 0,
+        limit: SEARCH_LIMIT,
+      }),
+    );
+    if (res.className === 'messages.MessagesNotModified') return { items: [] };
+    return parseSearchResult(res as unknown as RawSearchResult, meId, SEARCH_LIMIT);
+  },
+
   async logOut(): Promise<void> {
     try { await need().invoke(new Api.auth.LogOut()); } catch { /* already invalid: fine */ }
     storage.clearSession();
+    meId = '';
     try { await need().disconnect(); } catch { /* ignore */ }
     client = null;
   },

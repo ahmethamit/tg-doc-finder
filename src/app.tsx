@@ -3,6 +3,7 @@ import { useEffect } from 'preact/hooks';
 import { storage } from './storage';
 import { telegram } from './telegram/client';
 import { mapError } from './telegram/errors';
+import { Search } from './screens/Search';
 
 // Phase 1 screens: setup -> phone -> code -> (2FA password) -> signed in.
 // The real search UI comes in Phase 2.
@@ -106,8 +107,9 @@ function Password() {
 function Home() {
   return (
     <div>
-      <p>✅ Telegram'a bağlı. Faz 1 tamam: kapatıp açınca giriş korunmalı.</p>
-      <button onClick={() => run(async () => { await telegram.logOut(); screen.value = 'phone'; })}>Çıkış yap</button>
+      <Search onRelogin={() => { screen.value = 'phone'; }} />
+      {/* A proper Settings screen (with logout) arrives in Phase 4. */}
+      <button class="secondary" onClick={() => run(async () => { await telegram.logOut(); screen.value = 'phone'; })}>Çıkış yap</button>
     </div>
   );
 }
