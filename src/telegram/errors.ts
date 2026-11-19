@@ -8,7 +8,10 @@ export type MappedError = { message: string; action: ErrorAction };
 export function mapError(e: unknown): MappedError {
   const raw = String((e as { errorMessage?: string })?.errorMessage ?? (e as Error)?.message ?? e);
 
-  const flood = /FLOOD_WAIT_(\d+)/.exec(raw);
+  // Our own connect failure already carries GramJS's reason; keep it visible.
+  if (raw.startsWith("Telegram'a bağlanılamadı")) return { message: raw.slice(0, 400), action: 'none' };
+
+  const flood =/FLOOD_WAIT_(\d+)/.exec(raw);
   if (flood) return { message: `${flood[1]} sn sonra tekrar deneyin`, action: 'none' };
 
   if (raw.includes('PHONE_CODE_INVALID')) return { message: 'Kod hatalı', action: 'retry-code' };
@@ -23,5 +26,5 @@ export function mapError(e: unknown): MappedError {
 
   // Show the short technical text so unknown failures can be diagnosed from a phone
   // screenshot. Error texts from GramJS/Telegram never contain the phone or session.
-  return { message: `Beklenmeyen hata: ${raw.slice(0, 160)}`, action: 'none' };
+  return { message: `Beklenmeyen hata: ${raw.slice(0, 400)}`, action: 'none' };
 }

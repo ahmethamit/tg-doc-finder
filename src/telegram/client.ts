@@ -1,9 +1,29 @@
 // The ONLY file that talks to GramJS. Screens use this small interface.
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
-import { LogLevel } from 'telegram/extensions/Logger';
+import { Logger, LogLevel } from 'telegram/extensions/Logger';
 import { storage, type ApiCreds } from '../storage';
 import type { AuthState } from './types';
+
+// GramJS's connect() does NOT throw when the WebSocket cannot be opened, it just
+// returns. To learn *why* it failed we keep its last warnings/errors in memory
+// (never printed to the console, never stored) and show them if connecting fails.
+class MemoryLogger extends Logger {
+  lines: string[] = [];
+  log(_level: string, message: string) {
+    this.lines.push(String(message).slice(0, 120));
+    if (this.lines.length > 4) this.lines.shift();
+  }
+}
+const memoryLog = new MemoryLogger(LogLevel.WARN);
+
+async function connectOrThrow(c: TelegramClient) {
+  if (c.connected) return;
+  await c.connect();
+  if (!c.connected) {
+    throw new Error(`Telegram'a bağlanılamadı. ${memoryLog.lines.join(' | ')}`);
+  }
+}
 
 let client: TelegramClient | null = null;
 let creds: ApiCreds | null = null;
@@ -30,13 +50,14 @@ export const telegram = {
       deviceModel: 'TG Doc Finder (iPhone)',
       systemVersion: 'iOS PWA',
       appVersion: __APP_VERSION__,
+      baseLogger: memoryLog,
     });
-    client.setLogLevel(LogLevel.NONE); // GramJS logs can contain sensitive data
-    await client.connect();
+    await connectOrThrow(client);
     return (await client.checkAuthorization()) ? 'authorized' : 'needs-login';
   },
 
   async sendCode(phoneNumber: string): Promise<void> {
+    await connectOrThrow(need()); // retry the connection if init could not open it
     const r = await need().sendCode({ apiId: creds!.apiId, apiHash: creds!.apiHash }, phoneNumber);
     phone = phoneNumber;
     phoneCodeHash = r.phoneCodeHash;
@@ -74,6 +95,6 @@ export const telegram = {
 
   // iOS drops WebSockets of background PWAs; call when the app becomes visible.
   async ensureConnected(): Promise<void> {
-    if (client && !client.connected) await client.connect();
+    if (client) await connectOrThrow(client);
   },
 };

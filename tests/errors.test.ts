@@ -13,6 +13,10 @@ test('revoked session forces re-login', () => {
 test('network error', () => {
   expect(mapError(new Error('WebSocket closed')).message).toBe('Bağlantı yok');
 });
+test('connect failure keeps the reason', () => {
+  const m = mapError(new Error("Telegram'a bağlanılamadı. WebSocket was closed"));
+  expect(m.message).toContain('WebSocket was closed');
+});
 test('unknown error', () => {
   expect(mapError(new Error('xyz')).message).toBe('Beklenmeyen hata: xyz');
 });
