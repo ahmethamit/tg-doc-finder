@@ -14,5 +14,5 @@ test('network error', () => {
   expect(mapError(new Error('WebSocket closed')).message).toBe('Bağlantı yok');
 });
 test('unknown error', () => {
-  expect(mapError(new Error('xyz')).message).toBe('Beklenmeyen hata');
+  expect(mapError(new Error('xyz')).message).toBe('Beklenmeyen hata: xyz');
 });

@@ -21,5 +21,7 @@ export function mapError(e: unknown): MappedError {
   if (raw.includes('API_ID_INVALID')) return { message: 'API ID / API Hash hatalı', action: 'none' };
   if (/timeout|network|fetch|WebSocket|offline/i.test(raw)) return { message: 'Bağlantı yok', action: 'none' };
 
-  return { message: 'Beklenmeyen hata', action: 'none' };
+  // Show the short technical text so unknown failures can be diagnosed from a phone
+  // screenshot. Error texts from GramJS/Telegram never contain the phone or session.
+  return { message: `Beklenmeyen hata: ${raw.slice(0, 160)}`, action: 'none' };
 }
